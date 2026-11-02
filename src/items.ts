@@ -33,6 +33,50 @@ export function valueInSpec(
     .sort((a, b) => b.name.length - a.name.length)[0];
 }
 
+/** The value a sku carries: Meituan's own sku mapping when known, else read from the sku spec. */
+export function valueOfSku(
+  values: OptionValue[],
+  sku: Sku
+): OptionValue | undefined {
+  return values.some((v) => v.skus)
+    ? values.find((v) => v.skus?.includes(sku.id))
+    : valueInSpec(values, sku.spec);
+}
+
+/** Option data from the options popup (multispu): which groups the sku decides and which skus carry each value. */
+export interface SkuAttrGroup {
+  mode?: number;
+  name: string;
+  values: { id: number; sku_ids?: number[] }[];
+}
+
+/** Mode 2 marks a group the sku decides. Some menus' sku specs omit those values ("(1杯)"), so this map is the only reliable link. */
+const SKU_DECIDES = 2;
+
+export function withSkuAttrs(item: Item, attrs: SkuAttrGroup[]): Item {
+  const groups = item.groups.map((g) => {
+    const raw = attrs.find((a) => a.name === g.name);
+    if (raw?.mode !== SKU_DECIDES) {
+      return g;
+    }
+    const values = g.values.map((v) => ({
+      ...v,
+      skus: raw.values.find((r) => r.id === v.id)?.sku_ids ?? [],
+    }));
+    return { ...g, bySku: true, values };
+  });
+  const labelled = groups.filter((g) => g.bySku && g.values.length > 1);
+  const skus = item.skus.map((k) => ({
+    ...k,
+    label:
+      labelled
+        .map((g) => valueOfSku(g.values, k)?.short)
+        .filter(Boolean)
+        .join("·") || k.label,
+  }));
+  return { ...item, groups, skus };
+}
+
 /** A group every sku spec names (份量: 中杯/大杯, or a combo's 碳水) is decided by the sku, not by the caller. */
 export const followsSku = (values: OptionValue[], specs: string[]) =>
   specs.length > 0 && specs.every((s) => valueInSpec(values, s));
@@ -136,11 +180,9 @@ function switchSku(
   picked: Map<OptionGroup, OptionValue>
 ): Sku {
   const fixed = item.groups.filter((g) => g.bySku);
-  const target = fixed.map(
-    (g) => picked.get(g) ?? valueInSpec(g.values, start.spec)
-  );
+  const target = fixed.map((g) => picked.get(g) ?? valueOfSku(g.values, start));
   const sku = item.skus.find((k) =>
-    fixed.every((g, i) => valueInSpec(g.values, k.spec)?.id === target[i]?.id)
+    fixed.every((g, i) => valueOfSku(g.values, k)?.id === target[i]?.id)
   );
   if (!sku) {
     throw new UserError(
@@ -162,7 +204,7 @@ export function resolveLine(items: Item[], spec: ItemSpec): Line {
     );
   }
   const chosen = item.groups.map((g) =>
-    g.bySku ? valueInSpec(g.values, sku.spec) : (picked.get(g) ?? g.values[0])
+    g.bySku ? valueOfSku(g.values, sku) : (picked.get(g) ?? g.values[0])
   );
   return {
     activityTag: "",

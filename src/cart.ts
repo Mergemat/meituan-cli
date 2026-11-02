@@ -5,6 +5,7 @@ import { previewOrder } from "./meituan/checkout";
 import type { Ctx } from "./meituan/context";
 import { allItems, menu } from "./meituan/menu";
 import type { RawPreview } from "./meituan/raw";
+import { withSkuOptions } from "./meituan/skus";
 import { withRequired } from "./required";
 import type { Item, Line, Menu, Quote } from "./types";
 
@@ -80,13 +81,17 @@ export async function priceCart(
 ): Promise<PricedCart> {
   const m = await menu(ctx, shop);
   const items = allItems(m);
-  const picks = specs.map((s) => {
-    const spec = parseSpec(s);
-    return {
-      item: findItem(items, spec.sku).item,
-      line: resolveLine(items, spec),
-    };
-  });
+  const picks = await Promise.all(
+    specs.map(async (s) => {
+      const spec = parseSpec(s);
+      const item = await withSkuOptions(
+        ctx,
+        shop,
+        findItem(items, spec.sku).item
+      );
+      return { item, line: resolveLine([item], spec) };
+    })
+  );
   const split = () => {
     const learned = appOnly.get(shop);
     const needsApp = (p: Pick) => p.item.appOnly || learned.has(p.item.spu);

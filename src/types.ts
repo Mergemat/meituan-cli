@@ -30,6 +30,8 @@ export interface OptionValue {
   id: number;
   name: string;
   short: string;
+  /** The skus that carry this value, when Meituan says so (see withSkuAttrs). */
+  skus?: number[];
 }
 
 /** `bySku` groups are decided by the chosen sku (份量: 中杯/大杯, or a combo's parts), not by the caller. */
@@ -65,7 +67,7 @@ export interface Item {
 }
 
 export interface Menu {
-  /** False when the full site menu could not be loaded, so app-only dishes are not listed. */
+  /** False when only part of the site menu loaded, so some app-only dishes may be missing their mark. */
   appOnlyChecked: boolean;
   categories: { items: Item[]; name: string }[];
   deliveryFee: string;

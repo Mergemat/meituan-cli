@@ -7,6 +7,7 @@ import {
   shortName,
   shortNames,
   skuLabels,
+  withSkuAttrs,
 } from "../src/items";
 import type { Item, OptionGroup } from "../src/types";
 
@@ -192,6 +193,39 @@ describe("sku structure", () => {
       "中杯",
     ]);
     expect(skuLabels(["1人份(1人份)(1人份)"])).toEqual([""]);
+  });
+});
+
+describe("sku attrs from the options popup", () => {
+  // A menu whose sku specs leave the size out entirely, as the mini-program's do.
+  const vague: Item = {
+    ...tea,
+    groups: tea.groups.map((g) =>
+      g.name === "份量" ? { ...g, bySku: false } : g
+    ),
+    skus: [
+      { id: 101, label: "", min: 1, price: 22, spec: "(1杯)" },
+      { id: 102, label: "", min: 1, price: 17, spec: "(1杯)" },
+    ],
+  };
+  const popup = [
+    {
+      mode: 2,
+      name: "份量",
+      values: [
+        { id: 10, sku_ids: [102] },
+        { id: 11, sku_ids: [101] },
+      ],
+    },
+    { mode: 1, name: "温度", values: [{ id: 20 }, { id: 21 }, { id: 22 }] },
+  ];
+  test("sizes follow Meituan's sku mapping, not the spec text", () => {
+    const item = withSkuAttrs(vague, popup);
+    expect(resolveLine([item], parseSpec("101")).attr_ids).toEqual([
+      11, 20, 30,
+    ]);
+    expect(resolveLine([item], parseSpec("101:中杯")).skuId).toBe(102);
+    expect(item.skus.map((k) => k.label)).toEqual(["大杯", "中杯"]);
   });
 });
 

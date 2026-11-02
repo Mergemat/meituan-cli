@@ -3,6 +3,7 @@ import { UserError } from "../errors";
 import { renderItem } from "../format";
 import { findItem } from "../items";
 import { allItems, menu } from "../meituan/menu";
+import { withSkuOptions } from "../meituan/skus";
 import type { Command } from "./command";
 
 export const item: Command = {
@@ -14,8 +15,11 @@ export const item: Command = {
     if (!(shop && skus.length)) {
       throw new UserError("usage: meituan-cli item <shop> <sku>...");
     }
-    const items = allItems(await menu(await open(), shop));
-    const found = skus.map((s) => findItem(items, s).item);
+    const ctx = await open();
+    const items = allItems(await menu(ctx, shop));
+    const found = await Promise.all(
+      skus.map((s) => withSkuOptions(ctx, shop, findItem(items, s).item))
+    );
     const pics = await Promise.all(
       found.map((i) => image(i.pic, String(i.spu)))
     );
