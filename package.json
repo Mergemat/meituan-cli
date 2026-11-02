@@ -1,0 +1,59 @@
+{
+  "name": "meituan-cli",
+  "version": "0.1.0",
+  "description": "Order Meituan takeout (美团外卖) from the terminal. Built for AI agents: terse output, real checkout prices, the user pays on their phone.",
+  "keywords": [
+    "meituan",
+    "美团",
+    "美团外卖",
+    "waimai",
+    "takeout",
+    "food-delivery",
+    "cli",
+    "ai-agent",
+    "agent-tools"
+  ],
+  "homepage": "https://github.com/Mergemat/meituan-cli#readme",
+  "bugs": "https://github.com/Mergemat/meituan-cli/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mergemat/meituan-cli.git"
+  },
+  "license": "MIT",
+  "author": "Baga <baga@omarov.sh>",
+  "type": "module",
+  "bin": {
+    "meituan-cli": "src/cli.ts"
+  },
+  "files": [
+    "src",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "bench": "bun scripts/measure.ts bench",
+    "build": "bun build src/cli.ts --compile --minify --external chromium-bidi --external 'chromium-bidi/*' --outfile dist/meituan-cli",
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "link": "bun run build && ln -sf \"$PWD/dist/meituan-cli\" ~/.local/bin/meituan-cli",
+    "meituan-cli": "bun src/cli.ts",
+    "scan": "bun scripts/scan.ts",
+    "score": "bun scripts/measure.ts log",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "playwright-core": "1.64.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "@types/bun": "latest",
+    "gpt-tokenizer": "latest",
+    "typescript": "^5",
+    "ultracite": "8.1.1"
+  },
+  "engines": {
+    "bun": ">=1.3"
+  }
+}
