@@ -3,6 +3,8 @@ import { parseSpec, resolveLine } from "./items";
 import type { Item, Line, Menu } from "./types";
 
 const CUTLERY_CATEGORY = /餐具|utensil|cutlery/iu;
+// Shops file other things under "餐具" too (thermal bags, 保温袋); only items that are cutlery follow the cutlery choice.
+const IS_CUTLERY = /餐具|筷|勺|叉|utensil|cutlery/iu;
 const NO_CUTLERY = /无需|不需要|不要|环保|免餐具|no\s/iu;
 const WANTS_CUTLERY = /需要|要餐具|一餐一具|套|份/u;
 
@@ -16,7 +18,7 @@ const listing = (items: Item[]) =>
 
 /** The item in a cutlery category that matches the decision: 0 sets → the "no cutlery" item. */
 export function cutleryItem(items: Item[], sets: number): Item | undefined {
-  const open = items.filter((i) => !i.soldOut);
+  const open = items.filter((i) => !i.soldOut && IS_CUTLERY.test(i.name));
   if (sets === 0) {
     return open.find((i) => NO_CUTLERY.test(i.name));
   }

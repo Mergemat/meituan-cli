@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { cutleryItem, withRequired } from "../src/required";
 import type { Item, Line, Menu } from "../src/types";
 
+const MUST_PICK_BAG = /requires one item from "餐具".*701 不要保温袋/u;
 const MUST_PICK_DIP = /requires one item from "蘸料".*301 醋 ¥0/u;
 
 const dish = (spu: number, name: string, price = 0): Item => ({
@@ -68,6 +69,12 @@ describe("cutlery categories", () => {
 });
 
 describe("other required categories", () => {
+  test("a 餐具 category without cutlery in it is left to the caller", () => {
+    const bags = [dish(6, "【需要保温袋】", 0.5), dish(7, "不要保温袋")];
+    expect(() => withRequired(shop("餐具", bags), [line(501)], 0)).toThrow(
+      MUST_PICK_BAG
+    );
+  });
   test("are left to the caller, with the choices listed", () => {
     const vinegar = dish(3, "醋");
     expect(() => withRequired(shop("蘸料", [vinegar]), [line(501)], 0)).toThrow(
