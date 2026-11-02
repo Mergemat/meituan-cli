@@ -1,6 +1,6 @@
 {
   "name": "meituan-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Order Meituan takeout (美团外卖) from the terminal. Built for AI agents: terse output, real checkout prices, the user pays on their phone.",
   "keywords": [
     "meituan",
