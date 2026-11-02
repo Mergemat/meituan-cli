@@ -4,12 +4,11 @@
 //   bun scripts/scan.ts [out.json]
 import { writeFileSync } from "node:fs";
 import { setTimeout } from "node:timers/promises";
-import { parseSpec, resolveLine } from "../src/items";
-import { previewOrder } from "../src/meituan/checkout";
+import { priceCart } from "../src/cart";
 import { type Ctx, openCtx } from "../src/meituan/context";
 import { allItems, menu } from "../src/meituan/menu";
 import { search } from "../src/meituan/search";
-import { withRequired } from "../src/required";
+import { cutleryItem } from "../src/required";
 import { Site } from "../src/site/site";
 import type { Item, Menu } from "../src/types";
 
@@ -37,7 +36,6 @@ const SHOP_PAUSE_MS = 4000;
 const PRICE = /[\d.]+/u;
 const REASON = /[。.!！]/u;
 const PREFIX = /^Meituan rejected [^:]+: /u;
-const CUTLERY = /餐具|utensil|cutlery/iu;
 
 interface Shop {
   /** Dishes found to need the Meituan app. A lower bound when only part of the menu could be checked. */
@@ -73,11 +71,11 @@ function pickDishes(m: Menu): Item[] {
 
 /** What an agent does after reading the "requires one item from X" message: take the first one. Cutlery is automatic. */
 function requiredPick(m: Menu): string[] {
-  if (!m.required || CUTLERY.test(m.required)) {
+  const category = m.categories.find((c) => c.name === m.required);
+  if (!category || cutleryItem(category.items, 0)) {
     return [];
   }
-  const category = m.categories.find((c) => c.name === m.required);
-  const first = category?.items.find((i) => !i.soldOut)?.skus[0];
+  const first = category.items.find((i) => !i.soldOut)?.skus[0];
   return first ? [String(first.id)] : [];
 }
 
@@ -94,14 +92,8 @@ async function quoteAlone(ctx: Ctx, m: Menu, dish: Item): Promise<Row> {
     Math.max(sku.min, Math.ceil(minOrder / Math.max(sku.price, 0.1)))
   );
   try {
-    const items = allItems(m);
-    const specs = [`${sku.id}x${count}`, ...requiredPick(m)];
-    const lines = withRequired(
-      m,
-      specs.map((s) => resolveLine(items, parseSpec(s))),
-      0
-    );
-    await previewOrder(ctx, m.shop, lines);
+    // The same path `meituan-cli quote` takes, so the scan measures what agents get.
+    await priceCart(ctx, m.shop, [`${sku.id}x${count}`, ...requiredPick(m)], 0);
     return { ...row, ok: true };
   } catch (e) {
     return { ...row, error: (e as Error).message };
