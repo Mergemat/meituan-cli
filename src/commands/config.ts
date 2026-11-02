@@ -1,6 +1,7 @@
 import { type State, state } from "../config";
 import { parseCutlery } from "../cutlery";
 import { UserError } from "../errors";
+import { usage } from "../ratelimit";
 import type { Command } from "./command";
 
 const UNSET = "unset";
@@ -10,10 +11,16 @@ const settings: Record<string, (v: string) => Partial<State>> = {
   cutlery: (v) => ({ cutlery: parseCutlery(v) }),
 };
 
-const show = (s: State) =>
-  Object.keys(settings)
-    .map((k) => `${k}: ${s[k as keyof State] ?? "not set"}`)
-    .join("\n");
+function show(s: State) {
+  const { blocked, windows } = usage();
+  return [
+    ...Object.keys(settings).map(
+      (k) => `${k}: ${s[k as keyof State] ?? "not set"}`
+    ),
+    `requests: ${windows.map((w) => `${w.used}/${w.limit} per ${w.minutes === 60 ? "hour" : "minute"}`).join(", ")}`,
+    ...blocked.map((b) => `blocked by Meituan: ${b.endpoint} until ${b.until}`),
+  ].join("\n");
+}
 
 export const config: Command = {
   detail: `Settings: ${Object.keys(settings).join(", ")}. "meituan-cli config cutlery 0" means no cutlery on every order; "meituan-cli config cutlery ${UNSET}" asks again each time.`,

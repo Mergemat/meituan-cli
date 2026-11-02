@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 // How much of Meituan can meituan-cli actually order? Searches a spread of food types, counts app-only
 // dishes per menu, then quotes orderable dishes one by one (checkout preview; nothing is ordered).
+// It spends the shared request budget, so expect it to take over an hour.
 //   bun scripts/scan.ts [out.json]
 import { writeFileSync } from "node:fs";
-import { setTimeout } from "node:timers/promises";
 import { priceCart } from "../src/cart";
 import { type Ctx, openCtx } from "../src/meituan/context";
 import { allItems, menu } from "../src/meituan/menu";
@@ -32,7 +32,6 @@ const KEYWORDS = [
 const SHOPS_PER_KEYWORD = 2;
 const DISHES_PER_SHOP = 6;
 const MAX_COUNT = 30;
-const SHOP_PAUSE_MS = 4000;
 const PRICE = /[\d.]+/u;
 const REASON = /[。.!！]/u;
 const PREFIX = /^Meituan rejected [^:]+: /u;
@@ -114,15 +113,16 @@ async function findShops(ctx: Ctx): Promise<string[]> {
   return [...shops];
 }
 
+/** The scan lives inside the same request budget as everything else, so it waits its turn instead of failing. */
+process.env.MEITUAN_CLI_MAX_WAIT_MS = String(2 * 3_600_000);
+
 async function scan(): Promise<{ rows: Row[]; shops: Shop[] }> {
   const site = await Site.open();
   const ctx = await openCtx(site);
   const rows: Row[] = [];
   const shops: Shop[] = [];
   for (const shop of await findShops(ctx)) {
-    // Hundreds of calls in a burst get the menu endpoint blocked (HTTP 403) for a while; pace by shop.
-    // biome-ignore lint/performance/noAwaitInLoops: pacing is the point
-    await setTimeout(SHOP_PAUSE_MS);
+    // biome-ignore lint/performance/noAwaitInLoops: one shop at a time, inside the shared request budget
     const m = await menu(ctx, shop, { fresh: true }).catch(() => undefined);
     if (m) {
       const all = allItems(m);

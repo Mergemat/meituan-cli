@@ -1,4 +1,5 @@
 import { UserError } from "../errors";
+import { acquire, coolDown } from "../ratelimit";
 import { type Browser, H5, openBrowser } from "./launch";
 import {
   hasSession,
@@ -41,8 +42,13 @@ interface H5guardApi {
 interface Envelope {
   code?: number | string;
   data?: unknown;
+  /** HTTP status of the response, added by signedPost. */
+  http?: number;
   msg?: string;
 }
+
+/** Statuses Meituan's gateway uses for "too much, back off". */
+const BLOCKED_STATUS = new Set([403, 429]);
 
 export interface Location {
   lat: number;
@@ -143,10 +149,17 @@ export class Site {
     for (const [k, v] of Object.entries(fields)) {
       body[k] = typeof v === "object" ? JSON.stringify(v) : String(v ?? "");
     }
+    await acquire(path);
     const res: Envelope = await this.browser.tab.evaluate(signedPost, {
       body,
       url: path.startsWith("https://") ? path : API + path,
     });
+    if (res.http && BLOCKED_STATUS.has(res.http)) {
+      await coolDown(path);
+      throw new UserError(
+        `Meituan is blocking ${path} (HTTP ${res.http}); meituan-cli will leave it alone for 30 minutes.`
+      );
+    }
     if (Number(res.code) !== 0) {
       throw new UserError(
         `Meituan rejected ${path}: ${res.msg ?? JSON.stringify(res).slice(0, 300)}`
@@ -194,8 +207,12 @@ async function signedPost({
   });
   const text = await r.text();
   try {
-    return JSON.parse(text) as Envelope;
+    return { ...(JSON.parse(text) as Envelope), http: r.status };
   } catch {
-    return { code: -1, msg: `HTTP ${r.status}: ${text.slice(0, 200)}` };
+    return {
+      code: -1,
+      http: r.status,
+      msg: `HTTP ${r.status}: ${text.slice(0, 200)}`,
+    };
   }
 }

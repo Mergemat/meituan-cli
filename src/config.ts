@@ -21,6 +21,9 @@ export const paths = {
   images: join(CACHE, "img"),
   log: join(CONFIG, "calls.jsonl"),
   menus: join(CACHE, "menu"),
+  /** Shared request budget and Meituan's blocks, for every process on this machine. */
+  rate: join(CACHE, "rate.json"),
+  rateLock: join(CACHE, "rate.lock"),
   /** Cookies + localStorage. A file rather than a browser profile, so parallel runs never fight over a lock. */
   session: join(CONFIG, "session.json"),
   state: join(CONFIG, "state.json"),

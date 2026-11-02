@@ -96,7 +96,16 @@ An item is `<sku>[:<option>,...][x<count>]`, for example `32067247199:大杯,少
 
 Meituan signs every API request with a script that runs in its web page (H5guard, the `mtgsig` header). `meituan-cli` opens the mobile site (`h5.waimai.meituan.com`) in a headless Chrome over the DevTools protocol (no automation library, so it compiles to one self-contained binary), lets that script sign each call, and talks to the same JSON endpoints the site uses. Menus come from the WeChat mini-program's endpoint, which returns the whole orderable menu in one call; the site's own menu fills in the app-only dishes.
 
-Bursts of hundreds of requests get endpoints blocked (HTTP 403) for a while, so `meituan-cli` loads categories a few at a time and caches menus for 10 minutes.
+### Rate limits
+
+Bursts of hundreds of requests got an endpoint blocked (HTTP 403) for over a day, so every `meituan-cli` process on the machine shares one request budget:
+
+- at least 200 ms between requests, at most 40 per minute and 400 per hour (a full find-compare-order session is 40-60);
+- short waits happen quietly; when the next free slot is more than 20 seconds away the command stops with "retry after HH:MM" instead of hanging (`MEITUAN_CLI_MAX_WAIT_MS` changes that);
+- when Meituan answers 403 or 429, that endpoint is left alone for 30 minutes;
+- menus are cached for 10 minutes and their categories load a few at a time.
+
+`meituan-cli config` shows the budget in use and anything Meituan is blocking.
 
 ### Files
 
@@ -105,7 +114,7 @@ Bursts of hundreds of requests get endpoints blocked (HTTP 403) for a while, so 
 | `~/.config/meituan-cli/session.json` | your Meituan session (cookies). Treat it like a password |
 | `~/.config/meituan-cli/state.json` | chosen address and preferences |
 | `~/.config/meituan-cli/calls.jsonl` | local history of each call and its output, for measuring agent runs. Off with `MEITUAN_CLI_NOLOG=1` |
-| `~/.cache/meituan-cli/` | menus, photos, dishes known to need the app |
+| `~/.cache/meituan-cli/` | menus, photos, dishes known to need the app, the request budget |
 
 Nothing leaves your machine except requests to Meituan. `MEITUAN_CLI_HOME` moves the config folder; each run uses a throwaway browser profile that is deleted afterwards.
 
@@ -117,7 +126,7 @@ bun run check        # lint + format (Ultracite / Biome); bun run fix to apply
 bun run typecheck
 bun run bench        # token cost of a fixed session, per command
 bun run score <ms>   # score an agent's run from the call history since <ms>
-bun run scan         # orderability across ~30 shops; slow on purpose (needs login)
+bun run scan         # orderability across ~30 shops; spends the request budget, takes over an hour
 ```
 
 `eval/` holds agent tasks used to tune the output for agents: give one to an agent, then `bun run score <start ms>` reports calls, failures and output tokens.
