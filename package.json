@@ -33,7 +33,7 @@
   ],
   "scripts": {
     "bench": "bun scripts/measure.ts bench",
-    "build": "bun build src/cli.ts --compile --minify --external chromium-bidi --external 'chromium-bidi/*' --outfile dist/meituan-cli",
+    "build": "bun build src/cli.ts --compile --minify --outfile dist/meituan-cli",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "link": "bun run build && ln -sf \"$PWD/dist/meituan-cli\" ~/.local/bin/meituan-cli",
@@ -42,9 +42,6 @@
     "score": "bun scripts/measure.ts log",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "playwright-core": "1.64.1"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

@@ -25,9 +25,9 @@ To order: meituan-cli order Ov9cVIkLSxReiMkgBgeQyQI 32067247199:大杯,少冰,�
 
 ## Install
 
-You need a Chromium browser: Google Chrome, or `bunx playwright install chromium`.
+`meituan-cli` drives a Chromium-based browser you already have: Google Chrome, Chromium, Edge or Brave (or one from `bunx playwright install chromium`). Set `MEITUAN_CLI_BROWSER` to use a specific one.
 
-**Binary** (macOS, Linux): download `meituan-cli-<os>-<arch>` from [Releases](https://github.com/Mergemat/meituan-cli/releases), make it executable and put it on your `PATH`:
+**Binary** (macOS, Linux; nothing else to install): download `meituan-cli-<os>-<arch>` from [Releases](https://github.com/Mergemat/meituan-cli/releases), make it executable and put it on your `PATH`:
 
 ```sh
 chmod +x meituan-cli-darwin-arm64 && mv meituan-cli-darwin-arm64 ~/.local/bin/meituan-cli
@@ -94,7 +94,7 @@ An item is `<sku>[:<option>,...][x<count>]`, for example `32067247199:大杯,少
 
 ## How it works
 
-Meituan signs every API request with a script that runs in its web page (H5guard, the `mtgsig` header). `meituan-cli` opens the mobile site (`h5.waimai.meituan.com`) in a headless Chromium, lets that script sign each call, and talks to the same JSON endpoints the site uses. Menus come from the WeChat mini-program's endpoint, which returns the whole orderable menu in one call; the site's own menu fills in the app-only dishes.
+Meituan signs every API request with a script that runs in its web page (H5guard, the `mtgsig` header). `meituan-cli` opens the mobile site (`h5.waimai.meituan.com`) in a headless Chrome over the DevTools protocol (no automation library, so it compiles to one self-contained binary), lets that script sign each call, and talks to the same JSON endpoints the site uses. Menus come from the WeChat mini-program's endpoint, which returns the whole orderable menu in one call; the site's own menu fills in the app-only dishes.
 
 Bursts of hundreds of requests get endpoints blocked (HTTP 403) for a while, so `meituan-cli` loads categories a few at a time and caches menus for 10 minutes.
 
@@ -107,7 +107,7 @@ Bursts of hundreds of requests get endpoints blocked (HTTP 403) for a while, so 
 | `~/.config/meituan-cli/calls.jsonl` | local history of each call and its output, for measuring agent runs. Off with `MEITUAN_CLI_NOLOG=1` |
 | `~/.cache/meituan-cli/` | menus, photos, dishes known to need the app |
 
-Nothing leaves your machine except requests to Meituan. `MEITUAN_CLI_HOME` moves the config folder.
+Nothing leaves your machine except requests to Meituan. `MEITUAN_CLI_HOME` moves the config folder; each run uses a throwaway browser profile that is deleted afterwards.
 
 ## Development
 
@@ -127,7 +127,7 @@ src/
   cli.ts          entry: args, dispatch, errors, history
   commands/       one file per command, plus the registry
   meituan/        Meituan API by domain: address, search, menu, checkout, orders; raw payload types
-  site/           browser launch, login, signed transport
+  site/           Chrome over DevTools, login, session file, signed transport
   cart.ts         prices carts, learns app-only dishes
   items.ts        item specs → order lines
   required.ts     items a shop requires in every order

@@ -16,3 +16,8 @@ jobs:
       - run: bun run typecheck
       - run: bun test
       - run: bun run build
+      - name: Binary runs without the source tree
+        run: |
+          mv node_modules /tmp/node_modules
+          ./dist/meituan-cli --version
+          ./dist/meituan-cli help > /dev/null
