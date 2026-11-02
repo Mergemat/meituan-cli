@@ -93,7 +93,7 @@ export function renderMenu(m: Menu, filter = "", appOnly = new Set<number>()) {
     allItems(m).some((i) => i.appOnly || appOnly.has(i.spu)) &&
       "[app] = only orderable in the Meituan app (needs add-ons the site cannot choose)",
     !m.appOnlyChecked &&
-      "(could not check for app-only dishes right now; everything listed can be ordered)",
+      "(only part of the menu could be checked for app-only dishes; a quote catches the rest)",
     soldOut && `(${soldOut} sold-out items hidden)`,
     lines.length === 1 &&
       (filter ? `Nothing matches "${filter}".` : "Empty menu."),

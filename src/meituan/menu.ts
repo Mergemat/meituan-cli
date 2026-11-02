@@ -44,10 +44,10 @@ export async function menu(
     : undefined;
   const seen = new Set<number>();
   const categories = toCategories(tags, seen, required, false);
-  // Whatever the full site menu has beyond the orderable one needs the app. Best effort: without it
-  // the menu is still complete for ordering, it just cannot name the app-only dishes.
+  // Whatever the site menu has beyond the orderable one needs the app. Best effort: when only part of
+  // it loads, the menu is still complete for ordering, it just names fewer app-only dishes.
   const full = await siteMenu(site, shop);
-  for (const c of full ? toCategories(full, seen, undefined, true) : []) {
+  for (const c of toCategories(full.tags, seen, undefined, true)) {
     const same = categories.find((x) => x.name === c.name);
     if (same) {
       same.items.push(...c.items);
@@ -57,7 +57,7 @@ export async function menu(
   }
   const info = orderable.poi_info;
   const result: Menu = {
-    appOnlyChecked: Boolean(full),
+    appOnlyChecked: full.complete,
     categories,
     deliveryFee: info?.shipping_fee_tip ?? "",
     eta: info?.delivery_time_tip ?? "",
@@ -94,13 +94,16 @@ function toCategories(
     .filter((c) => c.items.length);
 }
 
-/** The mobile site's full menu. Only the first category arrives filled; the rest load one category at a time. */
+/**
+ * The mobile site's menu. Only the first page arrives filled; the rest load one category at a time,
+ * an endpoint Meituan blocks (HTTP 403) after bursts. Keeps whatever loaded and says whether that is all of it.
+ */
 async function siteMenu(
   site: Site,
   shop: string
-): Promise<RawTag[] | undefined> {
-  try {
-    const d = await site.call<RawFood>("openapi/v1/poi/food", {
+): Promise<{ complete: boolean; tags: RawTag[] }> {
+  const d = await site
+    .call<RawFood>("openapi/v1/poi/food", {
       geoType: 2,
       optimusCode: 10,
       partner: 4,
@@ -112,19 +115,20 @@ async function siteMenu(
       wm_ctype: "openapi",
       wm_order_channel: "wx_public",
       wm_poi_id: -100,
-    });
-    const tags = d.food_spu_tags ?? [];
-    await inBatches(
-      tags.filter((t) => !t.spus?.length),
-      CATEGORY_CONCURRENCY,
-      async (t) => {
-        t.spus = await categoryItems(site, shop, t);
-      }
-    );
-    return tags;
-  } catch {
-    // Rate limiting (HTTP 403) usually; the orderable menu stands on its own.
-  }
+    })
+    .catch(() => undefined);
+  const tags = d?.food_spu_tags ?? [];
+  const complete = await inBatches(
+    tags.filter((t) => !t.spus?.length),
+    CATEGORY_CONCURRENCY,
+    async (t) => {
+      t.spus = await categoryItems(site, shop, t);
+    }
+  ).then(
+    () => Boolean(d),
+    () => false
+  );
+  return { complete, tags };
 }
 
 async function categoryItems(

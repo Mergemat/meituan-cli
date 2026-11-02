@@ -40,8 +40,9 @@ const PREFIX = /^Meituan rejected [^:]+: /u;
 const CUTLERY = /餐具|utensil|cutlery/iu;
 
 interface Shop {
-  /** Dishes on the full site menu that need the Meituan app, when that could be checked. */
-  appOnly?: number;
+  /** Dishes found to need the Meituan app. A lower bound when only part of the menu could be checked. */
+  appOnly: number;
+  complete: boolean;
   dishes: number;
   name: string;
 }
@@ -134,9 +135,8 @@ async function scan(): Promise<{ rows: Row[]; shops: Shop[] }> {
     if (m) {
       const all = allItems(m);
       shops.push({
-        appOnly: m.appOnlyChecked
-          ? all.filter((i) => i.appOnly).length
-          : undefined,
+        appOnly: all.filter((i) => i.appOnly).length,
+        complete: m.appOnlyChecked,
         dishes: all.length,
         name: m.name,
       });
@@ -161,13 +161,11 @@ for (const r of failed) {
   const reason = (r.error ?? "").replace(PREFIX, "").split(REASON)[0] ?? "";
   reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
 }
-const checked = shops.filter((s) => s.appOnly !== undefined);
-const appDishes = checked.reduce((n, s) => n + (s.appOnly ?? 0), 0);
-const menuDishes = checked.reduce((n, s) => n + s.dishes, 0);
+const appDishes = shops.reduce((n, s) => n + s.appOnly, 0);
+const menuDishes = shops.reduce((n, s) => n + s.dishes, 0);
+const partial = shops.filter((s) => !s.complete).length;
 console.log(
-  checked.length
-    ? `app-only: ${appDishes} of ${menuDishes} dishes (${Math.round((100 * appDishes) / Math.max(menuDishes, 1))}%), in ${checked.filter((s) => s.appOnly).length} of ${checked.length} shops`
-    : "app-only: could not be checked (site menu unavailable)"
+  `app-only: ${appDishes} of ${menuDishes} dishes (${Math.round((100 * appDishes) / Math.max(menuDishes, 1))}%) in ${shops.filter((s) => s.appOnly).length} of ${shops.length} shops${partial ? `; a lower bound: ${partial} menus were only partly checkable` : ""}`
 );
 console.log(
   `orderable dishes quoted: ${rows.length} in ${new Set(rows.map((r) => r.shop)).size} shops, ${rows.length - failed.length} ok, ${failed.length} refused`
