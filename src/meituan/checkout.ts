@@ -1,5 +1,6 @@
 import { AppOnlyError, UserError } from "../errors";
 import { shortName } from "../items";
+import { blockedUntil, coolDown } from "../ratelimit";
 import type { Address, Line, Quote } from "../types";
 import type { Ctx } from "./context";
 import type { RawPreview } from "./raw";
@@ -71,6 +72,15 @@ export async function previewOrder(
 const APP_ONLY_ADDON = /必选小料/u;
 const REQUIRED_CATEGORY = /需要选择\[(?<category>[^\]]+)\]/u;
 const BELOW_MINIMUM = /不满起送价/u;
+/** Meituan's risk control barring the account from ordering ("账号存在较高风险，暂不支持下单"). */
+const ACCOUNT_AT_RISK = /风险/u;
+export const SUBMIT = "openh5/order/v2/submit";
+/** Retrying soon after a risk block is what keeps an account flagged. */
+const RISK_COOLDOWN_MS = 6 * 3_600_000;
+
+/** What to tell the user when Meituan bars this account from ordering. */
+export const riskBlocked = (shop: string, until: string) =>
+  `Meituan's risk control is not letting this account order from outside its app right now; meituan-cli will not try again before ${until}. Do not retry: the user can order in the Meituan app (${appLink(shop)}). Unpaid orders and heavy automated use are the usual triggers.`;
 
 /** Opens the shop in the Meituan app; the scheme comes from Meituan's own search results. */
 export const appLink = (shop: string) =>
@@ -179,10 +189,15 @@ export async function submitOrder(
     wm_poi_id: "-100",
   };
   // The site sends the order twice: as a JSON `data` field and flattened alongside it.
-  const r = await site.call<{ orderId?: string | number }>(
-    "openh5/order/v2/submit",
-    { data: order, ...order }
-  );
+  const r = await site
+    .call<{ orderId?: string | number }>(SUBMIT, { data: order, ...order })
+    .catch(async (e: unknown) => {
+      if (e instanceof UserError && ACCOUNT_AT_RISK.test(e.message)) {
+        await coolDown(SUBMIT, RISK_COOLDOWN_MS);
+        throw new UserError(riskBlocked(shop, blockedUntil(SUBMIT) ?? "later"));
+      }
+      throw e;
+    });
   if (!r?.orderId) {
     throw new UserError(`Order not placed: ${JSON.stringify(r).slice(0, 300)}`);
   }

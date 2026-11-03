@@ -13,7 +13,7 @@ Run `meituan-cli help` first; it lists every command and the item format. `meitu
 2. `meituan-cli menu <shop> [word]` to see dishes, one `<sku>` each, with option groups. For a big grocery store, `menu <shop> <word>` runs the store's own search.
 3. `meituan-cli item <shop> <sku>...` for full descriptions and photo paths. Open the photos: shops print calories, protein and portion sizes on them.
 4. `meituan-cli quote <shop> <item>...` for the real total. Only quotes have real fees and discounts.
-5. `meituan-cli order ... --confirm=<total>` only when the user asked to order.
+5. `meituan-cli order ... --confirm=<total>` only when the user asked to order, never as a test: unpaid orders get the account flagged by Meituan. To check a price, quote.
 
 ## Rules
 

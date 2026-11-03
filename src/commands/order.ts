@@ -2,7 +2,8 @@ import { priceCart } from "../cart";
 import { decidedCutlery, requireCutlery } from "../cutlery";
 import { UserError } from "../errors";
 import { describePick, renderQuote } from "../format";
-import { appLink, submitOrder } from "../meituan/checkout";
+import { appLink, riskBlocked, SUBMIT, submitOrder } from "../meituan/checkout";
+import { blockedUntil } from "../ratelimit";
 import type { Args, Command } from "./command";
 
 const text = (v: string | true | undefined) =>
@@ -12,7 +13,7 @@ export const order: Command = {
   detail: [
     "Cutlery: --cutlery=N (0 = none), or the saved meituan-cli config cutlery. Without either it refuses when the shop offers cutlery: ask the user.",
     "If a dish can only be ordered in the Meituan app, nothing is placed: you get the app link and the list to add there.",
-    "This creates a real order: only run it when the user asked for one.",
+    "This creates a real order: only run it when the user asked for one, and never as a test. Orders left unpaid count against the account with Meituan's risk control; to check a price, use quote.",
   ].join("\n"),
   name: "order",
   async run({ pos, opts }: Args, open) {
@@ -21,6 +22,11 @@ export const order: Command = {
       throw new UserError(
         "usage: meituan-cli order <shop> <item>... --confirm=<total>"
       );
+    }
+    // Checked before anything else, so a blocked account costs Meituan no requests at all.
+    const until = blockedUntil(SUBMIT);
+    if (until) {
+      throw new UserError(riskBlocked(shop, until));
     }
     const cutlery = decidedCutlery(text(opts.cutlery));
     const ctx = await open();

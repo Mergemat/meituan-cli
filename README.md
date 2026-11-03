@@ -108,7 +108,7 @@ Meituan signs every API request with a script that runs in its web page (H5guard
 
 Bursts of hundreds of requests got an endpoint blocked (HTTP 403) for over a day, so every `meituan-cli` process on the machine shares one request budget:
 
-- at least 200 ms between requests, at most 40 per minute and 1000 per hour (a full find-compare-order session is 40-60); search, which Meituan blocks soonest, at most 8 per minute and 100 per hour, and a repeated search within 10 minutes is served from cache;
+- at least 200 ms between requests, at most 40 per minute and 400 per hour (a full find-compare-order session is 40-60); search, which Meituan blocks soonest, at most 8 per minute and 100 per hour, and a repeated search within 10 minutes is served from cache;
 - short waits happen quietly; when the next free slot is more than a minute away the command stops with "retry after HH:MM" instead of hanging (`MEITUAN_CLI_MAX_WAIT_MS` changes that);
 - when Meituan answers 403 or 429, that endpoint is left alone for 30 minutes;
 - menus are cached for 10 minutes and their categories load a few at a time.

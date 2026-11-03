@@ -18,14 +18,14 @@ export interface Rules {
 
 /**
  * A full find-compare-order session is 40-60 requests. Bursts of hundreds within minutes got endpoints
- * blocked for over a day, so the per-minute cap does the protecting; the hourly one only stops a runaway
- * loop, and leaves room for a few agents working at once.
+ * blocked for over a day, and a day of ~500 requests an hour (with unpaid test orders) got the account
+ * barred from ordering, so the hourly cap stays near what a person could send.
  */
 export const RULES: Rules = {
   gapMs: 200,
   windows: [
     { limit: 40, ms: 60_000 },
-    { limit: 1000, ms: 3_600_000 },
+    { limit: 400, ms: 3_600_000 },
   ],
 };
 
@@ -144,10 +144,10 @@ export async function acquire(endpoint: string, rules = RULES) {
   const slot = await locked(() => {
     const now = Date.now();
     const state = read();
-    const blockedUntil = state.cooldowns[endpoint] ?? 0;
-    if (blockedUntil > now) {
+    const until = state.cooldowns[endpoint] ?? 0;
+    if (until > now) {
       throw new UserError(
-        `Meituan is blocking ${endpoint} for a while; retry after ${clock(blockedUntil)}.`
+        `Meituan is blocking ${endpoint} for a while; retry after ${clock(until)}.`
       );
     }
     const ownRules = ENDPOINT_RULES[endpoint];
@@ -178,12 +178,18 @@ export async function acquire(endpoint: string, rules = RULES) {
 }
 
 /** Records that Meituan refused an endpoint as blocked, so nothing calls it again until the cooldown ends. */
-export async function coolDown(endpoint: string) {
+export async function coolDown(endpoint: string, ms = COOLDOWN_MS) {
   await locked(() => {
     const state = read();
-    state.cooldowns[endpoint] = Date.now() + COOLDOWN_MS;
+    state.cooldowns[endpoint] = Date.now() + ms;
     writeAtomic(paths.rate, JSON.stringify(state));
   });
+}
+
+/** When Meituan's block on an endpoint ends, if it is blocked now. */
+export function blockedUntil(endpoint: string, now = Date.now()) {
+  const until = read().cooldowns[endpoint] ?? 0;
+  return until > now ? clock(until) : undefined;
 }
 
 /** Requests used against each window, and endpoints Meituan is currently blocking. */
