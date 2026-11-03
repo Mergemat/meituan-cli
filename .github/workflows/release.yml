@@ -30,3 +30,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/meituan-cli-* --generate-notes
+
+  npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm trusted publishing: no token secret, npm checks this workflow's identity.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: bun install --frozen-lockfile
+      # Skips a version that is already up, so re-running a release is safe.
+      - run: npm view "meituan-cli@${GITHUB_REF_NAME#v}" version || npm publish --provenance --access public

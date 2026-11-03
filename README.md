@@ -27,6 +27,13 @@ To order: meituan-cli order Ov9cVIkLSxReiMkgBgeQyQI 32067247199:大杯,少冰,�
 
 `meituan-cli` drives a Chromium-based browser you already have: Google Chrome, Chromium, Edge or Brave (or one from `bunx playwright install chromium`). Set `MEITUAN_CLI_BROWSER` to use a specific one.
 
+**npm** (needs Node 22+):
+
+```sh
+npm install -g meituan-cli
+npx meituan-cli help           # or run without installing
+```
+
 **Binary** (macOS, Linux; nothing else to install): download `meituan-cli-<os>-<arch>` from [Releases](https://github.com/Mergemat/meituan-cli/releases), make it executable and put it on your `PATH`:
 
 ```sh

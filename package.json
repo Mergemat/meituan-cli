@@ -1,6 +1,6 @@
 {
   "name": "meituan-cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Order Meituan takeout (美团外卖) from the terminal. Built for AI agents: terse output, real checkout prices, the user pays on their phone.",
   "keywords": [
     "meituan",
@@ -23,10 +23,10 @@
   "author": "Baga <baga@omarov.sh>",
   "type": "module",
   "bin": {
-    "meituan-cli": "src/cli.ts"
+    "meituan-cli": "dist/cli.js"
   },
   "files": [
-    "src",
+    "dist/cli.js",
     "skills",
     "README.md",
     "LICENSE"
@@ -34,10 +34,12 @@
   "scripts": {
     "bench": "bun scripts/measure.ts bench",
     "build": "bun build src/cli.ts --compile --minify --outfile dist/meituan-cli",
+    "build:npm": "bun build src/cli.ts --target=node --minify --banner '#!/usr/bin/env node' --outfile dist/cli.js",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "link": "bun run build && ln -sf \"$PWD/dist/meituan-cli\" ~/.local/bin/meituan-cli",
     "meituan-cli": "bun src/cli.ts",
+    "prepublishOnly": "bun test && bun run build:npm",
     "scan": "bun scripts/scan.ts",
     "score": "bun scripts/measure.ts log",
     "test": "bun test",
@@ -51,6 +53,6 @@
     "ultracite": "8.1.1"
   },
   "engines": {
-    "bun": ">=1.3"
+    "node": ">=22"
   }
 }

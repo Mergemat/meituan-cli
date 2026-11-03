@@ -11,13 +11,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun run typecheck
       - run: bun test
       - run: bun run build
-      - name: Binary runs without the source tree
+      - run: bun run build:npm
+      - name: Binary and npm bundle run without the source tree
         run: |
           mv node_modules /tmp/node_modules
           ./dist/meituan-cli --version
           ./dist/meituan-cli help > /dev/null
+          node dist/cli.js --version
+          node dist/cli.js help > /dev/null

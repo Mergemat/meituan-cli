@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 import pkg from "../package.json";
 import { parseArgs } from "./args";
 import { findCommand } from "./commands/index";
