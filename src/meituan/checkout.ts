@@ -70,6 +70,7 @@ export async function previewOrder(
 
 const APP_ONLY_ADDON = /必选小料/u;
 const REQUIRED_CATEGORY = /需要选择\[(?<category>[^\]]+)\]/u;
+const BELOW_MINIMUM = /不满起送价/u;
 
 /** Opens the shop in the Meituan app; the scheme comes from Meituan's own search results. */
 export const appLink = (shop: string) =>
@@ -84,6 +85,11 @@ function explainRejection(e: unknown, shop: string): never {
     // The dish carries an add-on group (小料) that only the Meituan app can fill; the mobile site cannot order it.
     throw new AppOnlyError(
       `${e.message} A dish here needs add-ons that only the Meituan app can choose. Finish in the app: ${appLink(shop)}`
+    );
+  }
+  if (BELOW_MINIMUM.test(e.message)) {
+    throw new UserError(
+      `The order is below the shop's minimum (起送价, see meituan-cli menu ${shop}). Add items or raise a count, e.g. <sku>x2.`
     );
   }
   const category = e.message.match(REQUIRED_CATEGORY)?.groups?.category;
@@ -101,19 +107,23 @@ function toQuote(p: RawPreview, shop: string, a: Address): Quote {
     ...(p.no_product_reminds ?? []),
   ];
   return {
+    asksCutlery: (p.diners_option?.length ?? 0) > 0,
     deliverTo: `${a.place} ${a.room}`,
     delivery: Number(p.real_shipping_fee) || 0,
     discount: Number(p.sub_total_price_discount) || 0,
     eta: p.expected_arrival_info?.select_view_time ?? "",
     lines: (p.foodlist ?? []).map((f) => ({
       count: f.count,
+      deal: Boolean(f.activity_tag),
       name: f.name,
       options: (f.attrs ?? []).map((x) => shortName(x.value)).join(" "),
       pic: f.picture ?? "",
       price: f.sub_total_price,
     })),
     name: p.poi_name ?? "",
-    packaging: Number(p.box_total_price) || 0,
+    // Grocery stores charge for the bag separately from the dishes' boxes.
+    packaging:
+      (Number(p.box_total_price) || 0) + (p.packing_bag?.packing_bag_fee ?? 0),
     shop,
     total: Number(p.total),
     warnings: [
@@ -125,7 +135,8 @@ function toQuote(p: RawPreview, shop: string, a: Address): Quote {
 }
 
 export interface SubmitOptions {
-  cutlery: number;
+  /** Undefined when the shop offers no cutlery choice. */
+  cutlery?: number;
   note: string;
 }
 
@@ -145,7 +156,7 @@ export async function submitOrder(
     callback_info: preview.callback_info ?? {},
     caution: note,
     coupon_view_id: "",
-    diners_count: cutlery === 0 ? NO_CUTLERY : cutlery,
+    diners_count: cutlery === 0 ? NO_CUTLERY : (cutlery ?? 0),
     expected_arrival_time: 0,
     ext_param: { sqtToken: "" },
     foodlist: lines,

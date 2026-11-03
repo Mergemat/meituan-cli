@@ -153,7 +153,9 @@ export function findItem(
       return { item, sku };
     }
   }
-  throw new UserError(`sku ${skuId} is not on this shop's menu`);
+  throw new UserError(
+    `sku ${skuId} is not on this shop's menu or in its recent search results`
+  );
 }
 
 function pickValues(item: Item, options: string[]) {

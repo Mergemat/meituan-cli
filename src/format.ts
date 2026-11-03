@@ -4,45 +4,17 @@
 import type { Pick, PricedCart } from "./cart";
 import { describeGroups } from "./items";
 import { allItems } from "./meituan/menu";
-import type { Address, Item, Menu, Order, Quote, ShopHit } from "./types";
+import type { Address, Item, Menu, Order, Quote } from "./types";
 
 export const yuan = (n: number) => `¥${Math.round(n * 100) / 100}`;
 const SPACE = /\s/gu;
 const NEWLINES = /\s*\n\s*/gu;
-/** Matching items shown per shop in search; the menu has the rest. */
-const SEARCH_ITEMS = 3;
 const SAME_OPTIONS = "same options as above";
-const squash = (s: string) => s.replace(SPACE, "");
-
+export const squash = (s: string) => s.replace(SPACE, "");
 export const renderAddresses = (list: Address[], active?: number) =>
   list
     .map((a) => `${a.id === active ? "*" : " "} ${a.id} ${a.place} ${a.room}`)
     .join("\n");
-
-export const renderShops = (hits: ShopHit[]) =>
-  hits.length
-    ? hits
-        .map((p) =>
-          [
-            p.shop,
-            p.name,
-            p.open ? "" : `[${p.status || "closed"}]`,
-            `★${p.score}`,
-            p.eta,
-            p.distance,
-            squash(p.minOrder),
-            squash(p.deliveryFee),
-            "|",
-            p.items
-              .slice(0, SEARCH_ITEMS)
-              .map((i) => `${i.name}${yuan(i.price)}`)
-              .join(" "),
-          ]
-            .filter(Boolean)
-            .join(" ")
-        )
-        .join("\n")
-    : "No results.";
 
 /** One id per item: the cheapest sku. Options pick the rest, so combos need not be listed. */
 function menuEntry(i: Item) {
@@ -89,14 +61,20 @@ export function renderMenu(m: Menu, filter = "", appOnly = new Set<number>()) {
       lines.push(...categoryLines(c.name, items, appOnly));
     }
   }
+  const listed = lines.length > 1;
   const notes = [
-    allItems(m).some((i) => i.appOnly || appOnly.has(i.spu)) &&
+    allItems(m).some(
+      (i) => matches(i) && !i.soldOut && (i.appOnly || appOnly.has(i.spu))
+    ) &&
       "[app] = only orderable in the Meituan app (needs add-ons the site cannot choose)",
-    !m.appOnlyChecked &&
+    listed &&
+      !m.appOnlyChecked &&
       "(only part of the menu could be checked for app-only dishes; a quote catches the rest)",
     soldOut && `(${soldOut} sold-out items hidden)`,
     lines.length === 1 &&
       (filter ? `Nothing matches "${filter}".` : "Empty menu."),
+    m.unlisted &&
+      `(${m.unlisted} categories of this shop are missing or partial here. Find their products with meituan-cli search <word>: the skus it shows work in quote and order)`,
   ];
   return [
     ...lines,
@@ -119,7 +97,8 @@ export function renderQuote(q: Quote) {
   return [
     `${q.name} → ${q.deliverTo}`,
     ...q.lines.map(
-      (l) => `${l.count}× ${l.name} ${l.options} ${yuan(l.price)}`
+      (l) =>
+        `${l.count}× ${l.name} ${l.options} ${yuan(l.price)}${l.deal ? " (deal price)" : ""}`
     ),
     `包装${yuan(q.packaging)} 配送${yuan(q.delivery)} 总计${yuan(q.total)}${q.discount ? ` (already ${yuan(q.discount)} off)` : ""} · ${q.eta}`,
     ...q.warnings.map((w) => `! ${w}`),

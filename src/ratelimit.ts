@@ -17,20 +17,36 @@ export interface Rules {
 }
 
 /**
- * Roughly what a person browsing the app sends, with headroom: a full find-compare-order session is
- * 40-60 requests. Bursts of hundreds got endpoints blocked for over a day.
+ * A full find-compare-order session is 40-60 requests. Bursts of hundreds within minutes got endpoints
+ * blocked for over a day, so the per-minute cap does the protecting; the hourly one only stops a runaway
+ * loop, and leaves room for a few agents working at once.
  */
 export const RULES: Rules = {
   gapMs: 200,
   windows: [
     { limit: 40, ms: 60_000 },
-    { limit: 400, ms: 3_600_000 },
+    { limit: 1000, ms: 3_600_000 },
   ],
+};
+
+/**
+ * Endpoints Meituan guards more tightly than the rest. Search was blocked (HTTP 403) after 37 searches
+ * in under 3 minutes, well inside the overall limits.
+ */
+export const ENDPOINT_RULES: Record<string, Rules> = {
+  "openh5/search/globalpage": {
+    gapMs: 0,
+    windows: [
+      { limit: 8, ms: 60_000 },
+      { limit: 100, ms: 3_600_000 },
+    ],
+  },
 };
 
 /** How long Meituan's "blocked" (HTTP 403/429) keeps an endpoint off limits before trying it again. */
 export const COOLDOWN_MS = 30 * 60_000;
-const DEFAULT_MAX_WAIT_MS = 20_000;
+// An agent waiting a minute costs less than one that fails, reads the error and retries.
+const DEFAULT_MAX_WAIT_MS = 60_000;
 const LOCK_STALE_MS = 5000;
 const LOCK_RETRY_MS = 15;
 
@@ -61,8 +77,28 @@ export function nextSlot(times: number[], now: number, rules: Rules): number {
 interface State {
   /** Endpoint → time it may be called again. */
   cooldowns: Record<string, number>;
+  /** Request times for endpoints with rules of their own. */
+  endpoints?: Record<string, number[]>;
   times: number[];
 }
+
+/** The earliest time at or after `now` that fits both the overall rules and an endpoint's own. */
+export function jointSlot(
+  times: number[],
+  own: number[],
+  now: number,
+  rules: Rules,
+  ownRules?: Rules
+): number {
+  const overall = nextSlot(times, now, rules);
+  const both = ownRules ? nextSlot(own, overall, ownRules) : overall;
+  return both === overall
+    ? overall
+    : jointSlot(times, own, both, rules, ownRules);
+}
+
+const recent = (times: number[], now: number, rules: Rules) =>
+  times.filter((t) => t > now - Math.max(...rules.windows.map((w) => w.ms)));
 
 const read = (): State => {
   try {
@@ -114,17 +150,27 @@ export async function acquire(endpoint: string, rules = RULES) {
         `Meituan is blocking ${endpoint} for a while; retry after ${clock(blockedUntil)}.`
       );
     }
-    const longest = Math.max(...rules.windows.map((w) => w.ms));
-    const times = state.times.filter((t) => t > now - longest);
-    const at = nextSlot(times, now, rules);
+    const ownRules = ENDPOINT_RULES[endpoint];
+    const times = recent(state.times, now, rules);
+    const own = ownRules
+      ? recent(state.endpoints?.[endpoint] ?? [], now, ownRules)
+      : [];
+    const at = jointSlot(times, own, now, rules, ownRules);
     if (at - now > maxWait) {
+      const why =
+        ownRules && at > nextSlot(times, now, rules)
+          ? ` (${endpoint} allows ${ownRules.windows[0]?.limit} a minute: reuse results you already have)`
+          : "";
       throw new UserError(
-        `Pausing to stay under Meituan's rate limits; retry after ${clock(at)}.`
+        `Pausing to stay under Meituan's rate limits${why}; retry after ${clock(at)}.`
       );
     }
+    const endpoints = ownRules
+      ? { ...state.endpoints, [endpoint]: [...own, at] }
+      : state.endpoints;
     writeAtomic(
       paths.rate,
-      JSON.stringify({ ...state, times: [...times, at] })
+      JSON.stringify({ ...state, endpoints, times: [...times, at] })
     );
     return at;
   });
@@ -147,6 +193,16 @@ export function usage(rules = RULES, now = Date.now()) {
     blocked: Object.entries(state.cooldowns)
       .filter(([, until]) => until > now)
       .map(([endpoint, until]) => ({ endpoint, until: clock(until) })),
+    own: Object.entries(ENDPOINT_RULES).map(([endpoint, r]) => ({
+      endpoint,
+      windows: r.windows.map((w) => ({
+        limit: w.limit,
+        minutes: w.ms / 60_000,
+        used: (state.endpoints?.[endpoint] ?? []).filter(
+          (t) => t > now - w.ms && t <= now
+        ).length,
+      })),
+    })),
     windows: rules.windows.map((w) => ({
       limit: w.limit,
       minutes: w.ms / 60_000,

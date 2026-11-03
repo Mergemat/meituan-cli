@@ -14,15 +14,22 @@ export interface RawAddress {
 
 export interface RawProduct {
   name?: string;
+  /** The regular price when `price` is a deal. */
+  original_price?: number;
   pic_url?: string;
   picture?: string;
   price?: number;
   product_name?: string;
   product_price?: number;
+  product_sku_id?: number;
+  product_spu_id?: number;
+  product_status?: number;
 }
 
 export interface RawShop {
   average_price_tip?: string;
+  /** 1 restaurant, 2 store (supermarkets, convenience stores, Meituan's 闪购). */
+  biz_type?: number;
   delivery_time_tip?: string;
   distance?: string;
   min_price_tip?: string;
@@ -63,7 +70,9 @@ export interface RawSpu {
 }
 
 export interface RawTag {
+  has_next_page?: boolean;
   name: string;
+  product_count?: number;
   spus?: RawSpu[];
   tag: string;
 }
@@ -88,8 +97,12 @@ export interface RawPreview {
   box_total_price?: number | string;
   callback_info?: { preview_order_callback_info?: string };
   default_pay_type?: number;
+  /** Cutlery choices; empty when the shop offers none (grocery stores). */
+  diners_option?: unknown[];
   expected_arrival_info?: { select_view_time?: string };
   foodlist?: {
+    /** Set on the units sold at a promotional price; the rest of the same item follow as a separate line. */
+    activity_tag?: string;
     attrs?: { value: string }[];
     count: number;
     name: string;
@@ -98,6 +111,7 @@ export interface RawPreview {
   }[];
   no_product_reminds?: RawRemind[];
   order_preview_tip?: { text?: string };
+  packing_bag?: { packing_bag_fee?: number };
   poi_name?: string;
   real_shipping_fee?: number;
   remind_infos?: RawRemind[];

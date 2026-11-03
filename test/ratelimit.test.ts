@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { nextSlot, type Rules } from "../src/ratelimit";
+import { jointSlot, nextSlot, type Rules } from "../src/ratelimit";
 
 const rules: Rules = {
   gapMs: 200,
@@ -26,5 +26,17 @@ describe("nextSlot", () => {
   });
   test("old requests no longer count", () => {
     expect(nextSlot([0, 1, 2], 4_000_000, rules)).toBe(4_000_000);
+  });
+});
+
+describe("jointSlot", () => {
+  const search: Rules = { gapMs: 0, windows: [{ limit: 2, ms: 60_000 }] };
+  test("an endpoint's own limit can hold a request the overall budget would let through", () => {
+    expect(jointSlot([], [0, 10_000], 20_000, rules, search)).toBe(60_000);
+  });
+  test("the slot an endpoint pushes to still keeps the overall gap", () => {
+    expect(jointSlot([60_000], [0, 10_000], 20_000, rules, search)).toBe(
+      60_200
+    );
   });
 });

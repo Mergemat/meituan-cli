@@ -12,12 +12,20 @@ const settings: Record<string, (v: string) => Partial<State>> = {
 };
 
 function show(s: State) {
-  const { blocked, windows } = usage();
+  const { blocked, own, windows } = usage();
+  const per = (ws: typeof windows) =>
+    ws
+      .map(
+        (w) =>
+          `${w.used}/${w.limit} per ${w.minutes === 60 ? "hour" : "minute"}`
+      )
+      .join(", ");
   return [
     ...Object.keys(settings).map(
       (k) => `${k}: ${s[k as keyof State] ?? "not set"}`
     ),
-    `requests: ${windows.map((w) => `${w.used}/${w.limit} per ${w.minutes === 60 ? "hour" : "minute"}`).join(", ")}`,
+    `requests: ${per(windows)}`,
+    ...own.map((o) => `  of which ${o.endpoint}: ${per(o.windows)}`),
     ...blocked.map((b) => `blocked by Meituan: ${b.endpoint} until ${b.until}`),
   ].join("\n");
 }

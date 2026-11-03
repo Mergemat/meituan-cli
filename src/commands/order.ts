@@ -1,5 +1,5 @@
 import { priceCart } from "../cart";
-import { chooseCutlery } from "../cutlery";
+import { decidedCutlery, requireCutlery } from "../cutlery";
 import { UserError } from "../errors";
 import { describePick, renderQuote } from "../format";
 import { appLink, submitOrder } from "../meituan/checkout";
@@ -10,7 +10,7 @@ const text = (v: string | true | undefined) =>
 
 export const order: Command = {
   detail: [
-    "Cutlery: --cutlery=N (0 = none), or the saved meituan-cli config cutlery. Without either it refuses: ask the user.",
+    "Cutlery: --cutlery=N (0 = none), or the saved meituan-cli config cutlery. Without either it refuses when the shop offers cutlery: ask the user.",
     "If a dish can only be ordered in the Meituan app, nothing is placed: you get the app link and the list to add there.",
     "This creates a real order: only run it when the user asked for one.",
   ].join("\n"),
@@ -22,7 +22,7 @@ export const order: Command = {
         "usage: meituan-cli order <shop> <item>... --confirm=<total>"
       );
     }
-    const cutlery = chooseCutlery(text(opts.cutlery));
+    const cutlery = decidedCutlery(text(opts.cutlery));
     const ctx = await open();
     const cart = await priceCart(ctx, shop, specs, cutlery);
     if (cart.app.length || !cart.exact) {
@@ -32,6 +32,7 @@ export const order: Command = {
       );
     }
     const { quote, preview, lines } = cart.exact;
+    const sets = quote.asksCutlery ? requireCutlery(cutlery) : undefined;
     // The caller echoes the quoted total, so a price that moved since the quote blocks the order.
     const confirm = text(opts.confirm);
     if (confirm === undefined) {
@@ -45,7 +46,7 @@ export const order: Command = {
       );
     }
     const id = await submitOrder(ctx, shop, lines, preview, {
-      cutlery,
+      cutlery: sets,
       note: text(opts.note) ?? "",
     });
     return {

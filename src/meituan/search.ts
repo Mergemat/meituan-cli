@@ -1,6 +1,9 @@
-import type { ShopHit } from "../types";
+import type { Item, ShopHit } from "../types";
 import type { Ctx } from "./context";
 import type { RawShop } from "./raw";
+
+const STORE = 2;
+const WHITESPACE = /\s+/gu;
 
 const parse = (s: string): Partial<RawShop> => {
   try {
@@ -10,13 +13,15 @@ const parse = (s: string): Partial<RawShop> => {
   }
 };
 
-/** Shops near the delivery address that match a keyword, with their matching items. */
+/** One page (20 shops) near the delivery address matching a keyword, with their matching items. */
 export async function search(
   { site, address }: Ctx,
-  keyword: string
-): Promise<ShopHit[]> {
+  keyword: string,
+  page = 0
+): Promise<{ hits: ShopHit[]; more: boolean }> {
   // Field set copied from the site's own request; the endpoint rejects calls missing any of them.
   const d = await site.call<{
+    has_next_page?: boolean;
     module_list?: { module_id: string; string_data: string }[];
   }>("openh5/search/globalpage", {
     activity_filter_codes: "",
@@ -30,7 +35,7 @@ export async function search(
     latitude: "",
     longitude: "",
     origin_guide_query: "",
-    page_index: 0,
+    page_index: page,
     page_size: 20,
     personalized: 1,
     product_card_page_index: 0,
@@ -64,18 +69,28 @@ export async function search(
     wm_visitid: "",
     word_source: "",
   });
-  return (d.module_list ?? [])
+  const hits = (d.module_list ?? [])
     .filter((m) => m.module_id === "poi_mode")
     .map((m) => toHit(parse(m.string_data)))
     .filter((h) => h.shop);
+  return { hits, more: Boolean(d.has_next_page) };
 }
 
 function toHit(p: Partial<RawShop>): ShopHit {
-  const items = (p.product_list ?? []).map((i) => ({
-    name: i.product_name ?? i.name ?? "",
-    pic: i.picture ?? i.pic_url ?? "",
-    price: i.price ?? i.product_price ?? 0,
-  }));
+  const items = (p.product_list ?? [])
+    .filter((i) => i.product_sku_id)
+    .map((i) => ({
+      // Shops put line breaks in product names; output is one line per shop.
+      name: (i.product_name ?? i.name ?? "").replace(WHITESPACE, " ").trim(),
+      pic: i.picture ?? i.pic_url ?? "",
+      price: i.price ?? i.product_price ?? 0,
+      sku: i.product_sku_id ?? 0,
+      spu: i.product_spu_id ?? 0,
+      was:
+        i.original_price && i.original_price > (i.price ?? 0)
+          ? i.original_price
+          : undefined,
+    }));
   return {
     deliveryFee: p.shipping_fee_tip ?? "",
     distance: p.distance ?? "",
@@ -83,6 +98,7 @@ function toHit(p: Partial<RawShop>): ShopHit {
     items: items.filter(
       (i, k) => items.findIndex((j) => j.name === i.name) === k
     ),
+    kind: p.biz_type === STORE ? "store" : "restaurant",
     minOrder: p.min_price_tip ?? "",
     name: p.name ?? "",
     open: p.status === 1,
@@ -94,3 +110,19 @@ function toHit(p: Partial<RawShop>): ShopHit {
     status: p.status_desc || undefined,
   };
 }
+
+/** A search hit as a menu item: no options or description, which grocery products rarely have anyway. */
+export const foundItem = (i: ShopHit["items"][number]): Item => ({
+  appOnly: false,
+  category: "search",
+  desc: "",
+  groups: [],
+  likes: 0,
+  name: i.name,
+  pic: i.pic,
+  price: i.price,
+  skus: [{ id: i.sku, label: "", min: 1, price: i.price, spec: "" }],
+  sold: "",
+  soldOut: false,
+  spu: i.spu,
+});

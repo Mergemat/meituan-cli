@@ -18,12 +18,16 @@ export const paths = {
   appOnly: join(CACHE, "app-only.json"),
   cache: CACHE,
   config: CONFIG,
+  /** Items search turned up, by shop: how products missing from a partial menu stay orderable. */
+  found: join(CACHE, "found"),
   images: join(CACHE, "img"),
   log: join(CONFIG, "calls.jsonl"),
   menus: join(CACHE, "menu"),
   /** Shared request budget and Meituan's blocks, for every process on this machine. */
   rate: join(CACHE, "rate.json"),
   rateLock: join(CACHE, "rate.lock"),
+  /** Search result pages, briefly, so repeating a search costs no request. */
+  searches: join(CACHE, "search"),
   /** Cookies + localStorage. A file rather than a browser profile, so parallel runs never fight over a lock. */
   session: join(CONFIG, "session.json"),
   state: join(CONFIG, "state.json"),

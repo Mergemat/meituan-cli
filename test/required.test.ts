@@ -43,6 +43,7 @@ const shop = (required: string, items: Item[]): Menu => ({
   name: "饺子店",
   required,
   shop: "s",
+  unlisted: 0,
 });
 
 describe("cutlery categories", () => {

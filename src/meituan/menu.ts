@@ -1,4 +1,4 @@
-import { menuCache } from "../cache";
+import { found, menuCache } from "../cache";
 import { followsSku, shortNames, skuLabels } from "../items";
 import type { Site } from "../site/site";
 import type { Item, Menu } from "../types";
@@ -11,6 +11,8 @@ import type { RawFood, RawSpu, RawTag } from "./raw";
  */
 const ORDERABLE_MENU = "https://wx.waimai.meituan.com/weapp/v1/poi/food";
 const CATEGORY_CONCURRENCY = 3;
+/** Past this many unloaded categories (grocery stores have 100+), checking them all would eat the request budget. */
+const MAX_LAZY_CATEGORIES = 12;
 
 /** A shop's menu: everything orderable here, plus app-only dishes marked as such. Cached briefly unless `fresh`. */
 export async function menu(
@@ -65,10 +67,17 @@ export async function menu(
     name: info?.name ?? "",
     required,
     shop,
+    unlisted: tags.filter(isPartial).length,
   };
   menuCache.put(result);
   return result;
 }
+
+/**
+ * Grocery stores send their first categories and leave the rest empty, to be paged in by the app.
+ * Counts are no guide: restaurants report more products per category than exist (repeats, sold out).
+ */
+const isPartial = (t: RawTag) => !t.spus?.length && Boolean(t.has_next_page);
 
 /**
  * Items repeat across categories (热销 lists best sellers again); keep the first copy, except in the
@@ -118,13 +127,13 @@ async function siteMenu(
     })
     .catch(() => undefined);
   const tags = d?.food_spu_tags ?? [];
-  const complete = await inBatches(
-    tags.filter((t) => !t.spus?.length),
-    CATEGORY_CONCURRENCY,
-    async (t) => {
-      t.spus = await categoryItems(site, shop, t);
-    }
-  ).then(
+  const empty = tags.filter((t) => !t.spus?.length);
+  if (empty.length > MAX_LAZY_CATEGORIES) {
+    return { complete: false, tags };
+  }
+  const complete = await inBatches(empty, CATEGORY_CONCURRENCY, async (t) => {
+    t.spus = await categoryItems(site, shop, t);
+  }).then(
     () => Boolean(d),
     () => false
   );
@@ -202,5 +211,38 @@ function toItem(s: RawSpu, category: string, appOnly: boolean): Item {
   };
 }
 
+/**
+ * The store's own product search, as the site's in-shop search box uses it. For grocery stores whose
+ * menu arrives partial, it is the way to reach the rest of the range.
+ */
+export async function searchInShop(
+  { site }: Ctx,
+  shop: string,
+  word: string
+): Promise<{ items: Item[]; total: number }> {
+  const r = await site.call<{
+    product_spu_list?: RawSpu[];
+    product_total_count?: number;
+  }>("openh5/search/poi/inshop/product", {
+    // "kewordTrim" is Meituan's spelling.
+    kewordTrim: word,
+    link_identifier_info: "",
+    pageIndex: 0,
+    pageSize: 20,
+    poi_id_str: shop,
+    wmPoiIdList: -100,
+  });
+  const items = (r.product_spu_list ?? [])
+    .filter((s) => s.skus?.length)
+    .map((s) => toItem(s, "search", false));
+  return { items, total: r.product_total_count ?? items.length };
+}
+
 export const allItems = (m: Menu): Item[] =>
   m.categories.flatMap((c) => c.items);
+
+/** Everything a sku can name in this shop: the menu, then what search turned up beyond it. */
+export const knownItems = (m: Menu): Item[] => [
+  ...allItems(m),
+  ...found.get(m.shop),
+];

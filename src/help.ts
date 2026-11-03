@@ -13,7 +13,7 @@ export const help = (
 ) => `meituan-cli ${version} — order Meituan takeout (美团外卖) from the terminal.
 
 Flow: search → menu → item (look closer) → quote → order. Prices and fees only come from quote.
-Ids: <shop> from search, <sku> from menu.
+Ids: <shop> from search, <sku> from menu or search.
 
 ${commands.map(row).join("\n")}
 

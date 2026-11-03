@@ -14,7 +14,16 @@ export interface ShopHit {
   deliveryFee: string;
   distance: string;
   eta: string;
-  items: { name: string; pic: string; price: number }[];
+  items: {
+    name: string;
+    pic: string;
+    price: number;
+    sku: number;
+    spu: number;
+    /** Regular price, when `price` is a deal (often one per order). */
+    was?: number;
+  }[];
+  kind: "restaurant" | "store";
   minOrder: string;
   name: string;
   open: boolean;
@@ -77,6 +86,11 @@ export interface Menu {
   /** Category the shop requires in every order (e.g. a cutlery line), if any. */
   required?: string;
   shop: string;
+  /**
+   * Categories Meituan listed without their products. Big grocery stores send only their first page;
+   * loading the rest takes a request per category, so search finds those products instead.
+   */
+  unlisted: number;
 }
 
 /** One order line, in the shape Meituan's preview and submit endpoints take. */
@@ -89,12 +103,16 @@ export interface Line {
 }
 
 export interface Quote {
+  /** Whether checkout offers a cutlery choice. Grocery stores do not. */
+  asksCutlery: boolean;
   deliverTo: string;
   delivery: number;
   discount: number;
   eta: string;
   lines: {
     count: number;
+    /** Units at a promotional price; Meituan splits an item into a deal line and a full-price line when the deal is limited. */
+    deal: boolean;
     name: string;
     options: string;
     pic: string;

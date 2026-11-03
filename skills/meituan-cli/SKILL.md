@@ -9,8 +9,8 @@ Run `meituan-cli help` first; it lists every command and the item format. `meitu
 
 ## Workflow
 
-1. `meituan-cli search <keyword>` with Chinese dish or shop names (轻食, 牛肉饭, 奶茶).
-2. `meituan-cli menu <shop> [word]` to see dishes, one `<sku>` each, with option groups.
+1. `meituan-cli search <keyword>` with Chinese dish or shop names (轻食, 牛肉饭, 奶茶). Restaurants come one per line with their matching dishes; supermarket and convenience-store goods come as a product list, each product once. Every `<sku>` shown works in item, quote and order with its `<shop>`. `--stores` or `--restaurants` keeps one kind.
+2. `meituan-cli menu <shop> [word]` to see dishes, one `<sku>` each, with option groups. For a big grocery store, `menu <shop> <word>` runs the store's own search.
 3. `meituan-cli item <shop> <sku>...` for full descriptions and photo paths. Open the photos: shops print calories, protein and portion sizes on them.
 4. `meituan-cli quote <shop> <item>...` for the real total. Only quotes have real fees and discounts.
 5. `meituan-cli order ... --confirm=<total>` only when the user asked to order.

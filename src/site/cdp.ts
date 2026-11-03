@@ -125,6 +125,23 @@ export class Tab {
     return new Tab(cdp, sessionId, targetId);
   }
 
+  /** A new, blank tab in the same browser. */
+  static async create(cdp: Cdp): Promise<Tab> {
+    const { targetId } = await cdp.send<{ targetId: string }>(
+      "Target.createTarget",
+      { url: "about:blank" }
+    );
+    const { sessionId } = await cdp.send<{ sessionId: string }>(
+      "Target.attachToTarget",
+      { flatten: true, targetId }
+    );
+    return new Tab(cdp, sessionId, targetId);
+  }
+
+  close() {
+    return this.cdp.send("Target.closeTarget", { targetId: this.targetId });
+  }
+
   send<T = Params>(method: string, params: Params = {}) {
     return this.cdp.send<T>(method, params, this.sessionId);
   }

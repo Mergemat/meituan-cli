@@ -103,7 +103,9 @@ async function findShops(ctx: Ctx): Promise<string[]> {
   const shops = new Set<string>();
   for (const keyword of KEYWORDS) {
     // biome-ignore lint/performance/noAwaitInLoops: one request at a time, to stay gentle with Meituan
-    const hits = await search(ctx, keyword).catch(() => []);
+    const { hits } = await search(ctx, keyword).catch(() => ({
+      hits: [],
+    }));
     for (const h of hits
       .filter((x) => x.open && !shops.has(x.shop))
       .slice(0, SHOPS_PER_KEYWORD)) {

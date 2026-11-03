@@ -13,18 +13,18 @@ export function parseCutlery(value: string): number {
   return n;
 }
 
-/** Cutlery for this order: the flag, else the saved preference. Never guessed: the user decides. */
-export function chooseCutlery(flag: string | undefined): number {
-  if (flag !== undefined) {
-    return parseCutlery(flag);
-  }
-  const saved = state.read().cutlery;
-  if (saved === undefined) {
+/** Cutlery the user decided: the flag, else the saved preference. Undefined until they decide. */
+export const decidedCutlery = (flag: string | undefined): number | undefined =>
+  flag === undefined ? state.read().cutlery : parseCutlery(flag);
+
+/** Never guessed: when the shop asks and the user has not decided, the agent must ask them. */
+export function requireCutlery(sets: number | undefined): number {
+  if (sets === undefined) {
     throw new UserError(
       "How many sets of cutlery? Ask the user, then pass --cutlery=N (0 = none). To remember it: meituan-cli config cutlery N"
     );
   }
-  return saved;
+  return sets;
 }
 
 /** One line for quotes, so the agent knows to ask before ordering. */

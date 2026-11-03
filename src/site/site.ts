@@ -1,5 +1,6 @@
 import { UserError } from "../errors";
 import { acquire, coolDown } from "../ratelimit";
+import { Tab } from "./cdp";
 import { type Browser, H5, openBrowser } from "./launch";
 import {
   hasSession,
@@ -168,11 +169,52 @@ export class Site {
     return res.data as T;
   }
 
+  /** Renders a self-contained HTML page to a JPEG, in a tab of its own so the Meituan page stays as it is. */
+  async render(html: string, width: number): Promise<Uint8Array> {
+    const tab = await Tab.create(this.browser.tab.cdp);
+    try {
+      await tab.send("Emulation.setDeviceMetricsOverride", {
+        deviceScaleFactor: 1,
+        height: 600,
+        mobile: false,
+        width,
+      });
+      const { frameTree } = await tab.send<{
+        frameTree: { frame: { id: string } };
+      }>("Page.getFrameTree");
+      await tab.send("Page.setDocumentContent", {
+        frameId: frameTree.frame.id,
+        html,
+      });
+      const height = await tab.evaluate(pageHeight, null);
+      const { data } = await tab.send<{ data: string }>(
+        "Page.captureScreenshot",
+        {
+          captureBeyondViewport: true,
+          clip: { height, scale: 1, width, x: 0, y: 0 },
+          format: "jpeg",
+          quality: 85,
+        }
+      );
+      return Uint8Array.from(Buffer.from(data, "base64"));
+    } finally {
+      await tab.close();
+    }
+  }
+
   /** Saves refreshed cookies so the session keeps living, then shuts the browser. */
   async close() {
     await saveSession(this.browser.tab).catch(() => undefined);
     await this.browser.close();
   }
+}
+
+/** Runs in the page: its full height once every image has decoded. */
+async function pageHeight() {
+  await Promise.all(
+    Array.from(document.images, (i) => i.decode().catch(() => undefined))
+  );
+  return document.documentElement.scrollHeight;
 }
 
 /** Runs inside the page, where H5guard lives. Must be self-contained: it is serialized into the browser. */
